@@ -28,14 +28,15 @@ export async function getSeaCondition(lat: number, lng: number): Promise<SeaCond
 
 // Phase 1 用粗略的經緯度範圍(bounding box)對照幾個主要海域分區,
 // 不求精確 —— 之後 M3/M4 需要時再換成正式的經緯度 → 分區對照表。
-const ZONE_BOUNDING_BOXES: Array<{ zone: string; minLat: number; maxLat: number; minLng: number; maxLng: number }> = [
+// M3 起 zones.ts 會讀這份清單算 zone 中心點,cron/refresh 與 sea-conditions 共用同一份分區。
+export const ZONE_BOUNDING_BOXES: Array<{ zone: string; minLat: number; maxLat: number; minLng: number; maxLng: number }> = [
   { zone: '臺灣海峽', minLat: 22.0, maxLat: 26.0, minLng: 118.0, maxLng: 120.5 },
   { zone: '巴士海峽', minLat: 20.0, maxLat: 22.5, minLng: 120.0, maxLng: 122.5 },
   { zone: '臺灣東北部海面', minLat: 24.5, maxLat: 26.5, minLng: 121.5, maxLng: 123.5 },
   { zone: '臺灣東南部海面', minLat: 21.5, maxLat: 24.0, minLng: 121.0, maxLng: 123.0 },
 ];
 
-function findZonesForLatLng(lat: number, lng: number): string[] {
+export function findZonesForLatLng(lat: number, lng: number): string[] {
   return ZONE_BOUNDING_BOXES.filter(
     (box) => lat >= box.minLat && lat <= box.maxLat && lng >= box.minLng && lng <= box.maxLng,
   ).map((box) => box.zone);
