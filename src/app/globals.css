@@ -1,98 +1,26 @@
 @import "tailwindcss";
 
-/* SeaState 海況安全網 — design tokens
-   Iron rule: red means DANGER only, never decoration.
-   Source: seastate-design-system (Noto Sans TC + IBM Plex Mono, 8px baseline, no shadows). */
 :root {
-  --color-ink: #0c1b24;
-  --color-surface: #ffffff;
-  --color-panel: #f2f5f7;
-  --color-hairline: #dfe4e8;
-  --color-hairline-strong: #c7d0d6;
-
-  --color-text-primary: #0c1b24;
-  --color-text-secondary: #3c4a52;
-  --color-text-muted: #64757f;
-
-  --color-safe: #1e8e5a;
-  --color-safe-bg: #e7f3ec;
-  --color-caution: #de9a16;
-  --color-caution-bg: #fbf0d8;
-  --color-danger: #cf3a2a;
-  --color-danger-bg: #fbe8e5;
-  --color-stale: #64757f;
-  --color-stale-bg: #edf0f2;
-
-  --color-brand-teal: #0e6e6e;
-  --color-action: #0c1b24;
-  --color-action-hover: #1b3140;
-
-  --color-map: #dce6ec;
-  --color-map-land: #e9eef0;
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
 @theme inline {
-  --color-ink: var(--color-ink);
-  --color-surface: var(--color-surface);
-  --color-panel: var(--color-panel);
-  --color-hairline: var(--color-hairline);
-  --color-hairline-strong: var(--color-hairline-strong);
-  --color-text-primary: var(--color-text-primary);
-  --color-text-secondary: var(--color-text-secondary);
-  --color-text-muted: var(--color-text-muted);
-  --color-safe: var(--color-safe);
-  --color-safe-bg: var(--color-safe-bg);
-  --color-caution: var(--color-caution);
-  --color-caution-bg: var(--color-caution-bg);
-  --color-danger: var(--color-danger);
-  --color-danger-bg: var(--color-danger-bg);
-  --color-stale: var(--color-stale);
-  --color-stale-bg: var(--color-stale-bg);
-  --color-brand-teal: var(--color-brand-teal);
-  --color-action: var(--color-action);
-  --color-action-hover: var(--color-action-hover);
-  --color-map: var(--color-map);
-  --color-map-land: var(--color-map-land);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
 
-  --radius-card: 8px;
-  --radius-card-lg: 10px;
-  --radius-control: 6px;
-
-  --font-sans: var(--font-noto-sans-tc), system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif;
-  --font-mono: var(--font-ibm-plex-mono), ui-monospace, "SFMono-Regular", "Menlo", monospace;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
 }
 
 body {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-}
-
-@layer utilities {
-  .skeleton-shimmer {
-    background-image: linear-gradient(
-      90deg,
-      var(--color-hairline) 25%,
-      #eff3f5 50%,
-      var(--color-hairline) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-shimmer 1.4s ease-in-out infinite;
-  }
-}
-
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton-shimmer,
-  .animate-spin {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-  }
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
