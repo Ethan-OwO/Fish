@@ -4,19 +4,21 @@
 
 ## 目前進度
 
-**Phase 1(海況資料整合 + 危險判斷後端)已完成並通過端到端驗證。**
-
-Phase 1 是 stateless 的:沒有資料庫、沒有 Auth、沒有前端頁面,只提供一支公開 API。
+**M1(海況資料整合)、M2(危險判斷後端)、M3(Supabase 快取層)已完成並通過端到端驗證。海況分區已從 4 個粗略區域擴充為 25 個(17 近海 + 8 遠海)。**
 
 - 風速資料來自 OpenWeather
 - 浪高與海表溫資料來自 Open-Meteo Marine
-- 官方警特報來自中央氣象署(CWA),已串接真實 API 並驗證通過
+- 官方警特報來自中央氣象署(CWA)
+- `/api/sea-conditions` 讀 Supabase 快取,由 `POST /api/cron/refresh`(cron-job.org 每 30 分觸發)並行寫入 25 個 zone
 - 綜合以上資料與可調整閾值,判定海域危險等級
+
+目前沒有前端頁面、沒有 Auth,只有兩支 API。詳細進度與各模組規劃見 [CLAUDE.md](CLAUDE.md)。
 
 ## 技術棧
 
 - Next.js 16(App Router, TypeScript, Tailwind)
 - Zod(API 輸入驗證)
+- Supabase(PostgreSQL + PostGIS)
 - Vitest(單元測試)
 - Node 22
 
@@ -30,20 +32,32 @@ npx tsc --noEmit   # type check
 npx eslint .       # lint
 ```
 
+需要 `.env.local`(見專案內 CLAUDE.md 的 API Key 狀態表),包含 `OPENWEATHER_API_KEY`、`CWA_API_KEY`、`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`CRON_SECRET`。
+
 ## API
 
 ```
 GET /api/sea-conditions?lat={緯度}&lng={經度}
 ```
 
-回傳指定座標的海況資料與危險評級:
+回傳指定座標所屬海域(25 分區之一)的海況資料與危險評級:
 
 ```json
 {
-  "condition": { "..." : "..." },
-  "danger": { "level": "safe | caution | danger", "factors": ["..."] }
+  "condition": { "...": "..." },
+  "danger": { "level": "safe | caution | danger", "factors": ["..."] },
+  "fetched_at": "ISO 時間字串",
+  "staleness_seconds": 0,
+  "is_stale": false
 }
 ```
+
+```
+POST /api/cron/refresh
+Authorization: Bearer <CRON_SECRET>
+```
+
+並行刷新 25 個 zone 的快取,回傳 `{ refreshed, skipped, failed }`。由 cron-job.org 每 30 分鐘觸發,非公開端點。
 
 範例:
 
@@ -55,4 +69,5 @@ curl "http://localhost:3000/api/sea-conditions?lat=24.0&lng=119.5"
 
 ## 注意事項
 
-危險判定閾值皆為保守預設值,非法定標準,App 需顯示免責聲明。
+- 危險判定閾值皆為保守預設值,非法定標準,App 需顯示免責聲明。
+- 25 個 zone 的 `warningArea`(對應 CWA 海上警特報海區字串)目前尚未完成現場資料集驗證,詳見 [src/lib/weather/CLAUDE.md](src/lib/weather/CLAUDE.md)。

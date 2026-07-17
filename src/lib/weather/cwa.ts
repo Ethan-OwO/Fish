@@ -1,4 +1,5 @@
 import type { SeaCondition } from '@/types';
+import type { ZoneMeta } from './zones';
 
 // (A) CWA 海象數值 —— Phase 1 先固定 mock,之後有正式資料源再取代。
 //     介面先定好,之後只改內部實作。
@@ -54,4 +55,13 @@ export async function fetchCwaWarnings(): Promise<CwaWarning[]> {
   }
 
   return warnings;
+}
+
+// refresh 端的比對主路徑:已知 zone(含 warningArea)→ 檢核 warnings 中是否有精準相符的海區字串。
+// 不用 lat/lng 反查,單純字串比對,pure function 方便測試。
+export function warningHitsZone(warnings: CwaWarning[], zone: ZoneMeta): boolean {
+  if (!zone.warningArea) {
+    return false;
+  }
+  return warnings.some((warning) => warning.zone === zone.warningArea);
 }
