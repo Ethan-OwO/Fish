@@ -3,13 +3,23 @@ import { timingSafeEqual } from 'crypto';
 import { createServiceClient } from '@/lib/supabase/server';
 import { toCacheRow, type CacheRow } from '@/lib/supabase/cache';
 import { getZoneList, type ZoneMeta } from '@/lib/weather/zones';
-import { getSeaCondition, getOfficialWarning } from '@/lib/weather/aggregate';
+import { getSeaCondition } from '@/lib/weather/aggregate';
+import { fetchCwaWarnings, warningHitsZone, type CwaWarning } from '@/lib/weather/cwa';
 import { evaluateDanger } from '@/lib/danger/evaluate';
+import { mapWithConcurrency } from '@/lib/util/concurrency';
 
 // 🐟 CWA 頻率上限:官方未公開數字化配額(見 scripts/probe-upstream.ts)。
-// Open-Meteo 免費層級為 10,000 次/日(官方 pricing 頁),4 個 zone 以 30 分鐘一輪
-// 只會用到 192 次/日,遠低於上限,故採用 roadmap 原定的 30 分鐘。
+// Open-Meteo 免費層級為 10,000 次/日(官方 pricing 頁),OpenWeather 走 /data/2.5/weather
+// 免費層級(60 次/分、1,000,000 次/月,無獨立每日上限,見 scripts/probe-upstream.ts)。
+// 25 個 zone 以 30 分鐘一輪為 1,200 次/日,遠低於兩者上限,故沿用 roadmap 原定的 30 分鐘。
 const REFRESH_INTERVAL_MINUTES = 30;
+
+// Vercel Hobby 方案 Node 函式時間上限,25 zone 並行刷新需要比 4 zone 時代更長的餘裕。
+// 🔒 部署到 Vercel 後應確認 Hobby 方案實際可設上限是否確實支援 60 秒。
+export const maxDuration = 60;
+
+// 同一輪 refresh 只打一次 CWA 警特報 API,25 個 zone 共用同一份結果,避免重複外呼。
+const CONCURRENCY_LIMIT = 6;
 
 function authorize(req: Request): boolean {
   const expected = process.env.CRON_SECRET;
@@ -42,11 +52,9 @@ interface RefreshFailure {
   error: string;
 }
 
-async function refreshZone(zone: ZoneMeta): Promise<CacheRow> {
-  const [condition, hasOfficialWarning] = await Promise.all([
-    getSeaCondition(zone.centerLat, zone.centerLng),
-    getOfficialWarning(zone.centerLat, zone.centerLng),
-  ]);
+async function refreshZone(zone: ZoneMeta, warnings: CwaWarning[]): Promise<CacheRow> {
+  const condition = await getSeaCondition(zone.centerLat, zone.centerLng);
+  const hasOfficialWarning = warningHitsZone(warnings, zone);
 
   const danger = evaluateDanger(condition, hasOfficialWarning);
   const fetchedAt = new Date();
@@ -100,19 +108,49 @@ export async function POST(req: Request): Promise<Response> {
   const refreshed: RefreshResult[] = [];
   const failed: RefreshFailure[] = [];
 
-  // continue-on-error:單一 zone 失敗不中斷,收集失敗清單一起回傳。
-  for (const zone of dueZones) {
+  if (dueZones.length > 0) {
+    // 整輪只打一次 CWA 警特報 API,25 個 due zone 共用同一份結果(warningHitsZone 逐一比對)。
+    // CWA 這次呼叫失敗不應讓整輪 25 個 zone 全部失敗——退化為「這輪視為無警報依據」,
+    // 風/浪資料仍照常刷新,不中斷其他上游正常的部分。
+    let warnings: CwaWarning[] = [];
     try {
-      const row = await refreshZone(zone);
+      warnings = await fetchCwaWarnings();
+    } catch {
+      warnings = [];
+    }
+
+    // continue-on-error:單一 zone 失敗不中斷,最多 CONCURRENCY_LIMIT 個並行。
+    const results = await mapWithConcurrency(dueZones, CONCURRENCY_LIMIT, async (zone) => {
+      const row = await refreshZone(zone, warnings);
       const { error: upsertError } = await supabase.from('sea_condition_cache').upsert(row);
       if (upsertError) {
-        failed.push({ zoneId: zone.zoneId, error: upsertError.message });
-        continue;
+        throw new Error(upsertError.message);
       }
-      refreshed.push({ zoneId: zone.zoneId });
-    } catch (error) {
-      failed.push({ zoneId: zone.zoneId, error: (error as Error).message });
-    }
+      return zone.zoneId;
+    });
+
+    results.forEach((result, index) => {
+      const zoneId = dueZones[index].zoneId;
+      if (result.status === 'fulfilled') {
+        refreshed.push({ zoneId });
+      } else {
+        failed.push({ zoneId, error: (result.reason as Error).message });
+      }
+    });
+  }
+
+  // 孤兒數清:刪掉不在現行 zone 數字表裡的舊列(例如 M3 時代的 4 個中文 zone_id)。
+  const currentZoneIds = zones.map((zone) => zone.zoneId);
+  const { error: cleanupError } = await supabase
+    .from('sea_condition_cache')
+    .delete()
+    .not('zone_id', 'in', `(${currentZoneIds.map((id) => `"${id}"`).join(',')})`);
+
+  if (cleanupError) {
+    return NextResponse.json(
+      { refreshed: refreshed.map((r) => r.zoneId), skipped, failed, cleanupError: cleanupError.message },
+      { status: 200 },
+    );
   }
 
   return NextResponse.json({

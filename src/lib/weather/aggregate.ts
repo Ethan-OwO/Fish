@@ -1,7 +1,8 @@
 import type { SeaCondition } from '@/types';
 import { fetchOpenWeatherWind } from './openweather';
 import { fetchOpenMeteoMarine } from './openmeteo';
-import { fetchCwaWarnings } from './cwa';
+import { fetchCwaWarnings, warningHitsZone } from './cwa';
+import { getZoneById, getZoneList } from './zones';
 
 // Phase 1:風走 OpenWeather,浪高與海表溫走 Open-Meteo Marine(免申請金鑰)。
 // 把不同來源本體正規化成統一的 SeaCondition。
@@ -26,31 +27,39 @@ export async function getSeaCondition(lat: number, lng: number): Promise<SeaCond
   };
 }
 
-// Phase 1 用粗略的經緯度範圍(bounding box)對照幾個主要海域分區,
-// 不求精確 —— 之後 M3/M4 需要時再換成正式的經緯度 → 分區對照表。
-// M3 起 zones.ts 會讀這份清單算 zone 中心點,cron/refresh 與 sea-conditions 共用同一份分區。
-export const ZONE_BOUNDING_BOXES: Array<{ zone: string; minLat: number; maxLat: number; minLng: number; maxLng: number }> = [
-  { zone: '臺灣海峽', minLat: 22.0, maxLat: 26.0, minLng: 118.0, maxLng: 120.5 },
-  { zone: '巴士海峽', minLat: 20.0, maxLat: 22.5, minLng: 120.0, maxLng: 122.5 },
-  { zone: '臺灣東北部海面', minLat: 24.5, maxLat: 26.5, minLng: 121.5, maxLng: 123.5 },
-  { zone: '臺灣東南部海面', minLat: 21.5, maxLat: 24.0, minLng: 121.0, maxLng: 123.0 },
-];
-
+// M5 起 25 個 zone 只定義中心點(見 zones.ts),不再維護 bounding box。
+// 點→區以「最近中心點」估算,不求精確多邊形——精度改良留給後續 M5 地圖細節。
 export function findZonesForLatLng(lat: number, lng: number): string[] {
-  return ZONE_BOUNDING_BOXES.filter(
-    (box) => lat >= box.minLat && lat <= box.maxLat && lng >= box.minLng && lng <= box.maxLng,
-  ).map((box) => box.zone);
+  const zones = getZoneList();
+  if (zones.length === 0) {
+    return [];
+  }
+
+  let nearest = zones[0];
+  let nearestDistSq = Infinity;
+  for (const zone of zones) {
+    const dLat = lat - zone.centerLat;
+    const dLng = lng - zone.centerLng;
+    const distSq = dLat * dLat + dLng * dLng;
+    if (distSq < nearestDistSq) {
+      nearestDistSq = distSq;
+      nearest = zone;
+    }
+  }
+
+  return [nearest.zoneId];
 }
 
 // 查該經緯度所在海域是否有生效中的官方海上警特報。
-// 需要 lat/lng → 海域分區的估算(粗略即可),
-// 再比對 fetchCwaWarnings() 回來的數據。
+// 需要 lat/lng → 海域分區的估算(粗略即可,見 findZonesForLatLng),
+// 再用 warningHitsZone 比對 fetchCwaWarnings() 回來的數據。
 export async function getOfficialWarning(lat: number, lng: number): Promise<boolean> {
-  const zones = findZonesForLatLng(lat, lng);
-  if (zones.length === 0) {
+  const [zoneId] = findZonesForLatLng(lat, lng);
+  const zone = zoneId ? getZoneById(zoneId) : undefined;
+  if (!zone) {
     return false;
   }
 
   const warnings = await fetchCwaWarnings();
-  return warnings.some((warning) => zones.includes(warning.zone));
+  return warningHitsZone(warnings, zone);
 }
