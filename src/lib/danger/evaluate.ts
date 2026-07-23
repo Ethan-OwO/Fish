@@ -29,7 +29,12 @@ function evaluateWind(windSpeed: number): DangerFactor {
   };
 }
 
-function evaluateWave(waveHeight: number): DangerFactor {
+// 浪高為 null(陸地座標,Open-Meteo 無模型資料)時不產出 factor:
+// 缺漏的量不參與 max 運算,也絕不被當成 0(0 = 無浪,是致命誤讀)。
+function evaluateWave(waveHeight: number | null): DangerFactor | null {
+  if (waveHeight === null) {
+    return null;
+  }
   let level: DangerLevel = 'safe';
   if (waveHeight > THRESHOLDS.waveHeight.danger) {
     level = 'danger';
@@ -59,13 +64,18 @@ function evaluateOfficialWarning(hasOfficialWarning: boolean): DangerFactor {
 //   2. 綜合 level = 各因子的「最嚴重者」(max)
 //   3. hasOfficialWarning === true → 直接 override 為 'danger'
 //   4. Phase 1 不產出 seaTemp factor
+//   5. waveHeight 為 null → 不產出 wave factor(缺漏量不參與判定)
 // 不碰 API、不碰 DB;給定相同輸入必得相同輸出(可單元測試)。
 export function evaluateDanger(cond: SeaCondition, hasOfficialWarning: boolean): DangerResult {
   const windFactor = evaluateWind(cond.windSpeed);
   const waveFactor = evaluateWave(cond.waveHeight);
   const warningFactor = evaluateOfficialWarning(hasOfficialWarning);
 
-  const factors: DangerFactor[] = [windFactor, waveFactor, warningFactor];
+  const factors: DangerFactor[] = [
+    windFactor,
+    ...(waveFactor ? [waveFactor] : []),
+    warningFactor,
+  ];
 
   let level: DangerLevel = 'safe';
   for (const factor of factors) {

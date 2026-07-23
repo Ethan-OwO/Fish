@@ -8,7 +8,7 @@ export interface CacheRow {
   center_lng: number;
   rating: 'safe' | 'caution' | 'danger';
   wind_speed_ms: number;
-  wave_height_m: number;
+  wave_height_m: number | null;
   sea_temp_c: number;
   has_official_warning: boolean;
   sources: Record<string, unknown>;

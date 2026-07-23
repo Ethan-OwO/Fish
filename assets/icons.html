@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>擲筊意象 Icons — no background</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .row {
+    display: flex;
+    gap: 40px;
+  }
+  .cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .label {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .desc {
+    font-size: 11px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+  <div class="row" id="root"></div>
+
+  <script>
+    // 擲筊 (jiaobei / moon-block divination) glyph geometry,
+    // extracted as-is from the SeaState design system source.
+    const JIAO_D = "M4,-20 C-10,-16 -11,16 3,20 C10,17 11,8 8.5,0 C11,-8 10.5,-16 4,-20 Z";
+
+    const LIGHT = "#c7c7c7"; // 陽 (flat) face up
+    const DARK  = "#4a4a4a"; // 陰 (round) face up
+
+    const SEMANTIC = [
+      { key: "safe",    label: "安全 safe",    term: "聖筊 · 一淺一深", left: false, right: true },
+      { key: "caution", label: "注意 caution", term: "笑筊 · 兩者皆淺", left: false, right: false },
+      { key: "danger",  label: "危險 danger",  term: "陰筊 · 兩者皆深", left: true,  right: true },
+    ];
+
+    function jiaoBlockSVG(cx, cy, rot, mirror, color) {
+      const m = mirror ? -1 : 1;
+      return `<g transform="translate(${cx} ${cy}) rotate(${rot}) scale(${m * 0.82} 0.82)">
+        <path d="${JIAO_D}" fill="${color}" />
+      </g>`;
+    }
+
+    function jiaoPairSVG(left, right) {
+      return `<svg width="60" height="40" viewBox="0 0 66 48" fill="none" aria-hidden="true">
+        ${jiaoBlockSVG(23, 21, -10, false, left ? DARK : LIGHT)}
+        ${jiaoBlockSVG(43, 27, 10, true, right ? DARK : LIGHT)}
+      </svg>`;
+    }
+
+    const root = document.getElementById("root");
+    root.innerHTML = SEMANTIC.map(s => `
+      <div class="cell">
+        ${jiaoPairSVG(s.left, s.right)}
+        <div class="label">${s.label}</div>
+        <div class="desc">${s.term}</div>
+      </div>
+    `).join("");
+  </script>
+</body>
+</html>

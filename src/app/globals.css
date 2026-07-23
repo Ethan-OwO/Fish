@@ -1,26 +1,164 @@
 @import "tailwindcss";
 
+/*
+ * 設計系統 tokens,對照 docs/DESIGN.md 第 2 節。
+ * 原始變數放 :root(深色預設)與 [data-theme="sun"](日照模式),
+ * 元件一律透過下方 @theme inline 映射出的 Tailwind utilities 取色,不硬編碼 hex。
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 深色(預設)—— 水深分層 */
+  --bg: #0b1620; /* 深水 */
+  --bg-alt: #11202b; /* 陸棚 */
+  --surface: #1a2f3c; /* 淺灘 */
+  --surface-hi: #24404f; /* 潮間帶,hover / pressed */
+  --border: #21384a;
+
+  --text: #eaf2f6;
+  --text-muted: #9ab0bd;
+  --text-dim: #5f7686;
+
+  --accent: #35d6e8; /* 儀表青 —— 互動、連結、選取態 */
+  --accent-alt: #ff6b2c; /* 救生橘 —— 只給「送出回報」CTA(M6) */
+
+  /* 評級三色(語意專用,禁止挪作他用) */
+  --safe: #5ce08a;
+  --caution: #ffc233;
+  --danger: #ff4d5e;
+
+  --safe-bg: #0f2a1e; /* 評級燈底 */
+  --caution-bg: #2e2412;
+  --danger-bg: #2e1418;
+
+  /* 量測色綁定:一個量一個色,全站永不變 */
+  --m-wind: #35d6e8;
+  --m-gust: #35d6e8; /* 與風速同色,虛線區分 */
+  --m-wave: #7aa2ff;
+  --m-temp: #ff9b54;
+  --m-warning: #ff4d5e;
+}
+
+/* 日照模式(高亮度)。開關 UI 留待後續,色票結構先就位。 */
+[data-theme="sun"] {
+  --bg: #ffffff;
+  --bg-alt: #eef3f6;
+  --surface: #e2eaef;
+  --surface-hi: #d3dfe6;
+  --border: #b9c8d2;
+  --text: #0b1620;
+  --text-muted: #47606f;
+  --text-dim: #47606f;
+  --accent: #0a7f8c;
+  --safe: #0f7a3d;
+  --caution: #9a6200;
+  --danger: #c1121f;
+  /* 日照模式評級燈 = 滿版色塊 + 深色文字:燈底直接用評級色本身 */
+  --safe-bg: #0f7a3d;
+  --caution-bg: #9a6200;
+  --danger-bg: #c1121f;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* 水深階梯與文字 */
+  --color-bg: var(--bg);
+  --color-bg-alt: var(--bg-alt);
+  --color-surface: var(--surface);
+  --color-surface-hi: var(--surface-hi);
+  --color-border: var(--border);
+  --color-fg: var(--text);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-dim: var(--text-dim);
+  --color-accent: var(--accent);
+  --color-accent-alt: var(--accent-alt);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* 評級三色 + 燈底 */
+  --color-safe: var(--safe);
+  --color-caution: var(--caution);
+  --color-danger: var(--danger);
+  --color-safe-bg: var(--safe-bg);
+  --color-caution-bg: var(--caution-bg);
+  --color-danger-bg: var(--danger-bg);
+
+  /* 量測色 */
+  --color-m-wind: var(--m-wind);
+  --color-m-gust: var(--m-gust);
+  --color-m-wave: var(--m-wave);
+  --color-m-temp: var(--m-temp);
+  --color-m-warning: var(--m-warning);
+
+  /* 字型:中文 Noto Sans TC / 拉丁與數字 Inter / 數值座標時間 JetBrains Mono */
+  --font-sans: var(--font-inter), var(--font-noto-sans-tc), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* 字級 scale:13 / 14 / 16 / 18 / 22 / 28 / 40 / 64(rem 基準,讓瀏覽器字級縮放生效) */
+  --text-13: 0.8125rem;
+  --text-13--line-height: 1.25rem;
+  --text-14: 0.875rem;
+  --text-14--line-height: 1.375rem;
+  --text-16: 1rem;
+  --text-16--line-height: 1.5rem;
+  --text-18: 1.125rem;
+  --text-18--line-height: 1.625rem;
+  --text-22: 1.375rem;
+  --text-22--line-height: 1.875rem;
+  --text-28: 1.75rem;
+  --text-28--line-height: 2.25rem;
+  /* 40/64 兩級的行高取 1.2:CJK 字面高於拉丁 em box,1.1 會被字身撐破 */
+  --text-40: 2.5rem;
+  --text-40--line-height: 3rem;
+  --text-64: 4rem;
+  --text-64--line-height: 4.75rem;
+
+  /* 燈質動畫(參考海圖燈標寫法):
+     Oc 明暗光 = 2.4s 呼吸;Fl(2) 閃光 = 4s 週期雙閃。
+     使用時一律搭配 motion-safe: variant,讓 prefers-reduced-motion 自動取消。 */
+  --animate-light-oc: light-oc 2.4s ease-in-out infinite;
+  --animate-light-fl2: light-fl2 4s linear infinite;
+
+  /* 進場動畫:文字/區塊淡入上移。搭配 motion-safe: 與 animation-delay 做 stagger */
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes light-oc {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  @keyframes light-fl2 {
+    0%,
+    20%,
+    100% {
+      opacity: 1;
+    }
+    4%,
+    12% {
+      opacity: 0.35;
+    }
+    8%,
+    16% {
+      opacity: 1;
+    }
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  /* 拉丁與數字一律 tabular-nums(DESIGN.md 第 3 節) */
+  font-variant-numeric: tabular-nums;
 }

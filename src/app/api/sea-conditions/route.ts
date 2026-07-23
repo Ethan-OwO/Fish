@@ -6,9 +6,12 @@ import { findZonesForLatLng, getSeaCondition, getOfficialWarning } from '@/lib/w
 import { getZoneList, type ZoneMeta } from '@/lib/weather/zones';
 import { evaluateDanger } from '@/lib/danger/evaluate';
 
+// 不用 z.coerce:coerce 對 null 會靜默轉 0(見 api/CLAUDE.md 關鍵規則 #1),
+// 且其 unknown input 型別與 .pipe() 不相容。transform(Number) 後空字串已被
+// min(1) 擋掉、非數字變 NaN 會被 z.number() 拒絕,行為等價且型別乾淨。
 const querySchema = z.object({
-  lat: z.string().min(1).pipe(z.coerce.number().min(-90).max(90)),
-  lng: z.string().min(1).pipe(z.coerce.number().min(-180).max(180)),
+  lat: z.string().min(1).transform(Number).pipe(z.number().min(-90).max(90)),
+  lng: z.string().min(1).transform(Number).pipe(z.number().min(-180).max(180)),
 });
 
 async function readZone(zoneId: string): Promise<CacheRow | null> {

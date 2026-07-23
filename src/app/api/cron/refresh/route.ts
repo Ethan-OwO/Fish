@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceClient } from '@/lib/supabase/server';
 import { toCacheRow, type CacheRow } from '@/lib/supabase/cache';
+import { toHistoryRow, HISTORY_RETENTION_HOURS } from '@/lib/supabase/history';
 import { getZoneList, type ZoneMeta } from '@/lib/weather/zones';
 import { getSeaCondition } from '@/lib/weather/aggregate';
 import { fetchCwaWarnings, warningHitsZone, type CwaWarning } from '@/lib/weather/cwa';
@@ -107,6 +108,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const refreshed: RefreshResult[] = [];
   const failed: RefreshFailure[] = [];
+  const refreshedRows: CacheRow[] = [];
 
   if (dueZones.length > 0) {
     // 整輪只打一次 CWA 警特報 API,25 個 due zone 共用同一份結果(warningHitsZone 逐一比對)。
@@ -126,17 +128,39 @@ export async function POST(req: Request): Promise<Response> {
       if (upsertError) {
         throw new Error(upsertError.message);
       }
-      return zone.zoneId;
+      return row;
     });
 
     results.forEach((result, index) => {
       const zoneId = dueZones[index].zoneId;
       if (result.status === 'fulfilled') {
         refreshed.push({ zoneId });
+        refreshedRows.push(result.value);
       } else {
         failed.push({ zoneId, error: (result.reason as Error).message });
       }
     });
+  }
+
+  // 歷史 append(供 12h 走勢圖)+ 清掉保留期外的舊列。
+  // 歷史寫入失敗不影響 refresh 本體結果:cache 已更新,只在回應多帶 historyError。
+  let historyError: string | undefined;
+  if (refreshedRows.length > 0) {
+    const { error: insertError } = await supabase
+      .from('sea_condition_history')
+      .insert(refreshedRows.map(toHistoryRow));
+    if (insertError) {
+      historyError = insertError.message;
+    } else {
+      const cutoff = new Date(now.getTime() - HISTORY_RETENTION_HOURS * 60 * 60 * 1000);
+      const { error: pruneError } = await supabase
+        .from('sea_condition_history')
+        .delete()
+        .lt('fetched_at', cutoff.toISOString());
+      if (pruneError) {
+        historyError = pruneError.message;
+      }
+    }
   }
 
   // 孤兒數清:刪掉不在現行 zone 數字表裡的舊列(例如 M3 時代的 4 個中文 zone_id)。
@@ -148,7 +172,13 @@ export async function POST(req: Request): Promise<Response> {
 
   if (cleanupError) {
     return NextResponse.json(
-      { refreshed: refreshed.map((r) => r.zoneId), skipped, failed, cleanupError: cleanupError.message },
+      {
+        refreshed: refreshed.map((r) => r.zoneId),
+        skipped,
+        failed,
+        cleanupError: cleanupError.message,
+        ...(historyError ? { historyError } : {}),
+      },
       { status: 200 },
     );
   }
@@ -157,5 +187,6 @@ export async function POST(req: Request): Promise<Response> {
     refreshed: refreshed.map((r) => r.zoneId),
     skipped,
     failed,
+    ...(historyError ? { historyError } : {}),
   });
 }

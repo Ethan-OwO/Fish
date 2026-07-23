@@ -94,6 +94,18 @@ describe('evaluateDanger', () => {
     expect(result.factors.find((f) => f.key === 'seaTemp')).toBeUndefined();
   });
 
+  it('omits the wave factor entirely when waveHeight is null (land coordinate)', () => {
+    const result = evaluateDanger(makeCondition({ waveHeight: null }), false);
+    expect(result.factors.find((f) => f.key === 'wave')).toBeUndefined();
+    // 缺漏量不參與 max:其餘因子 safe → 綜合仍是 safe,絕不因 null 被當成 0 或誤判
+    expect(result.level).toBe('safe');
+  });
+
+  it('null waveHeight does not suppress severity from other factors', () => {
+    const result = evaluateDanger(makeCondition({ waveHeight: null, windSpeed: 15 }), false);
+    expect(result.level).toBe('danger');
+  });
+
   it('is a pure function: same input always yields same output', () => {
     const cond = makeCondition({ windSpeed: 9, waveHeight: 1.5 });
     const result1 = evaluateDanger(cond, false);
