@@ -31,9 +31,26 @@ function formatClock(iso: string): string {
 // 資訊都在圖上,不依賴 hover(甲板上戴手套沒有 hover)。
 export function Sparkline({ label, unit, points, colorClass, emptyText }: SparklineProps) {
   const values = points.map((p) => p.v).filter((v): v is number => v !== null);
-  const hasData = values.length >= 2;
 
-  if (!hasData) {
+  // 一個點畫不出走勢線,但「只有一筆」與「這個量測沒有資料」是兩回事:
+  // 剛套用歷史表 / cron 才跑第一輪時會落在前者,此時仍要把當前值誠實秀出來,
+  // 不能顯示 emptyText(那句是在講「此海區沒有這個量測」,會誤導)。
+  if (values.length === 1) {
+    return (
+      <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-3">
+        <p className="text-13 text-fg-muted">{label}</p>
+        <div className={`flex h-14 items-center gap-3 ${colorClass}`}>
+          <p>
+            <span className="font-mono text-22">{values[0].toFixed(1)}</span>
+            <span className="ml-1 text-13 text-fg-muted">{unit}</span>
+          </p>
+          <p className="text-13 text-fg-dim">累積中,尚不足以畫出走勢</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (values.length === 0) {
     return (
       <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-3">
         <p className="text-13 text-fg-muted">{label}</p>

@@ -1,6 +1,15 @@
 # 海況回報 App(seastate-app)
 
+**🌊 線上版:[pelaghelm.vercel.app](https://pelaghelm.vercel.app/)**
+
 給漁民使用的海況 App。整合中央氣象署(CWA)與國際海象資料(Open-Meteo / OpenWeather),依風速、浪高與官方警特報,將指定海域算出**安全 / 注意 / 危險**三級評級。規劃中的後續階段將加入 GPS 定位、文字回報與地圖,形成漁民互助的即時海況地圖。
+
+| 頁面 | 網址 |
+| ---- | ---- |
+| 首頁 | <https://pelaghelm.vercel.app/> |
+| 海況地圖 | <https://pelaghelm.vercel.app/map> |
+| 關於 / 聯絡 | <https://pelaghelm.vercel.app/about> |
+| 狀態展示(開發用) | <https://pelaghelm.vercel.app/demo> |
 
 ## 目前進度
 
@@ -24,14 +33,16 @@
 
 尚無 Auth。設計系統見 [docs/DESIGN.md](docs/DESIGN.md)。
 
-> ⚠️ **前端目前吃 `src/lib/mock/` 的種子化 mock 資料**(型別與真 API 完全同構),部署後改接 `/api/zones`、`/api/history` 即可。
+**前端已接真資料**:頁面透過 `src/lib/data/sea-conditions.ts` 直接讀 Supabase 快取(Server Component 內不繞自家 HTTP API),邏輯與 `/api/zones`、`/api/history` 完全一致。`/demo` 仍刻意使用 `src/lib/mock/sea-conditions.ts`——它要展示「全來源失敗」等真資料無法隨選重現的狀態。
+
+兩份 migration(`sea_condition_cache`、`sea_condition_history`)皆已套用完畢。走勢圖的資料由 cron 每輪 append,**需累積 2 筆以上才畫得出線**;只有 1 筆時圖表誠實顯示當前值與「累積中,尚不足以畫出走勢」。
 
 ## 技術棧
 
 - Next.js 16(App Router, TypeScript, Tailwind v4)
 - Zod(API 輸入驗證)
 - Supabase(PostgreSQL + PostGIS)
-- Vitest(單元測試,27 個)
+- Vitest(單元測試,30 個)
 - Node 22
 
 ## 開發 / 測試

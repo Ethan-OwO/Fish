@@ -2,12 +2,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { JiaoIcon } from '@/components/icons/JiaoIcon';
 import { THRESHOLDS } from '@/lib/danger/config';
-import { getMockZoneSummaries } from '@/lib/mock/dashboard';
+import { getZoneSummaries } from '@/lib/data/sea-conditions';
+
+// 海況每 30 分鐘由 cron 刷新一次;頁面快取 5 分鐘。
+export const revalidate = 300;
 
 // Landing:文字為引導的首頁。資訊密度靠即時海況帶與 mono 數據,
 // 動畫只做進場 fade-up(motion-safe),不做行銷式大圖。
-export default function Home() {
-  const zones = getMockZoneSummaries();
+export default async function Home() {
+  const zones = await getZoneSummaries();
   const counts = { safe: 0, caution: 0, danger: 0 };
   for (const z of zones) {
     if (z.current) counts[z.current.rating] += 1;
