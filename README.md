@@ -4,22 +4,34 @@
 
 ## 目前進度
 
-**M1(海況資料整合)、M2(危險判斷後端)、M3(Supabase 快取層)已完成並通過端到端驗證。海況分區已從 4 個粗略區域擴充為 25 個(17 近海 + 8 遠海)。**
+**M1(海況資料整合)、M2(危險判斷後端)、M3(Supabase 快取層)、M4(前端整站 + 歷史資料)已完成。海況分區已從 4 個粗略區域擴充為 25 個(17 近海 + 8 遠海)。**
+
+後端:
 
 - 風速資料來自 OpenWeather
 - 浪高與海表溫資料來自 Open-Meteo Marine
 - 官方警特報來自中央氣象署(CWA)
 - `/api/sea-conditions` 讀 Supabase 快取,由 `POST /api/cron/refresh`(cron-job.org 每 30 分觸發)並行寫入 25 個 zone
+- 每輪 refresh 另 append `sea_condition_history`(保留 48 小時),供走勢圖使用
 - 綜合以上資料與可調整閾值,判定海域危險等級
 
-目前沒有前端頁面、沒有 Auth,只有兩支 API。詳細進度與各模組規劃見 [CLAUDE.md](CLAUDE.md)。
+前端(全部為 Server Component,零 Client Component;選區/排序/狀態切換走 query string):
+
+- `/` — landing 首頁
+- `/map` — 海況地圖:台灣 SVG 海圖 + 25 區標記 + 詳情面板 + 12 小時走勢圖 + 可排序海域清單
+- `/about` — 關於 / 聯絡 / roadmap
+- `/demo` — 五種資料狀態切換展示(開發用)
+
+尚無 Auth。設計系統見 [docs/DESIGN.md](docs/DESIGN.md)。
+
+> ⚠️ **前端目前吃 `src/lib/mock/` 的種子化 mock 資料**(型別與真 API 完全同構),部署後改接 `/api/zones`、`/api/history` 即可。
 
 ## 技術棧
 
-- Next.js 16(App Router, TypeScript, Tailwind)
+- Next.js 16(App Router, TypeScript, Tailwind v4)
 - Zod(API 輸入驗證)
 - Supabase(PostgreSQL + PostGIS)
-- Vitest(單元測試)
+- Vitest(單元測試,27 個)
 - Node 22
 
 ## 開發 / 測試
@@ -32,7 +44,15 @@ npx tsc --noEmit   # type check
 npx eslint .       # lint
 ```
 
-需要 `.env.local`(見專案內 CLAUDE.md 的 API Key 狀態表),包含 `OPENWEATHER_API_KEY`、`CWA_API_KEY`、`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`CRON_SECRET`。
+需要在專案根目錄自建 `.env.local`(已被 `.gitignore` 排除,不會進版控):
+
+```bash
+OPENWEATHER_API_KEY=        # openweathermap.org 免費方案
+CWA_API_KEY=                # opendata.cwa.gov.tw 會員取得
+SUPABASE_URL=               # Supabase 專案 URL
+SUPABASE_SERVICE_ROLE_KEY=  # service role,僅 server 端使用,切勿加 NEXT_PUBLIC_ 前綴
+CRON_SECRET=                # 自訂隨機字串,cron-job.org 需帶同一組
+```
 
 ## API
 
@@ -53,11 +73,23 @@ GET /api/sea-conditions?lat={緯度}&lng={經度}
 ```
 
 ```
+GET /api/zones
+```
+
+25 區當前海況總覽(地圖 / 清單用),只讀快取、不觸發 coldFetch。回傳 `{ zones: ZoneSummary[] }`。
+
+```
+GET /api/history?zoneId={海區代號}&hours={小時數}
+```
+
+單一海區過去 N 小時的歷史資料(走勢圖用,預設 12、上限 48)。回傳 `{ zone_id, hours, points }`,最舊在前。
+
+```
 POST /api/cron/refresh
 Authorization: Bearer <CRON_SECRET>
 ```
 
-並行刷新 25 個 zone 的快取,回傳 `{ refreshed, skipped, failed }`。由 cron-job.org 每 30 分鐘觸發,非公開端點。
+並行刷新 25 個 zone 的快取,回傳 `{ refreshed, skipped, failed }`。由 cron-job.org 每 30 分鐘觸發,非公開端點(以 `timingSafeEqual` 比對 bearer token)。
 
 範例:
 
@@ -70,4 +102,6 @@ curl "http://localhost:3000/api/sea-conditions?lat=24.0&lng=119.5"
 ## 注意事項
 
 - 危險判定閾值皆為保守預設值,非法定標準,App 需顯示免責聲明。
-- 25 個 zone 的 `warningArea`(對應 CWA 海上警特報海區字串)目前尚未完成現場資料集驗證,詳見 [src/lib/weather/CLAUDE.md](src/lib/weather/CLAUDE.md)。
+- 25 個 zone 的 `warningArea`(對應 CWA 海上警特報海區字串)目前全部為空字串——原本串接的 `W-C0033-002` 實測為**陸上**縣市警特報,正確的海上警特報 resource_id 尚未找到。在補上之前,官方警報 override 這條路徑實質停用(風速 / 浪高評級不受影響)。
+- `supabase/migrations/20260723090000_m4_sea_condition_history.sql` **尚未在 Supabase 專案上執行**。套用前 cron refresh 會回 `historyError`(refresh 本體不受影響),`/api/history` 會回 502。
+- 前端頁面目前使用 mock 資料,尚未接上真 API。
