@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { JiaoIcon } from '@/components/icons/JiaoIcon';
 import { THRESHOLDS } from '@/lib/danger/config';
@@ -218,13 +219,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 情境圖 placeholder */}
+      {/* 情境圖:清晨漁港,甲板視角 */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-12">
-        <div className="flex min-h-56 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-bg-alt p-8 text-center">
-          <p className="text-14 text-fg-dim">[ 圖片placeholder ]</p>
-          <p className="max-w-md text-13 text-fg-dim">
-            建議放:清晨漁港或甲板視角的照片(橫幅,至少 1600×600),或 App 在手機上的實拍情境照。
-          </p>
+        <div className="relative h-56 w-full overflow-hidden rounded-lg border border-border sm:h-80 lg:h-96">
+          <Image
+            src="/images/boat.png"
+            alt="清晨漁港,漁民在甲板上準備出海"
+            fill
+            sizes="(min-width: 1280px) 1152px, 100vw"
+            className="object-cover"
+            priority={false}
+          />
         </div>
       </section>
 

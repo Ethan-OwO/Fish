@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -114,8 +115,14 @@ export default function AboutPage() {
       <section id="contact" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-12">
         <h2 className="text-28 font-bold">聯絡</h2>
         <div className="mt-6 grid gap-3 md:grid-cols-[auto_1fr]">
-          <div className="flex size-28 items-center justify-center rounded-lg border border-dashed border-border bg-bg-alt text-center">
-            <p className="px-2 text-[11px] leading-relaxed text-fg-dim">[ 頭像placeholder ]<br />方形照片<br />≥ 320×320</p>
+          <div className="relative size-28 overflow-hidden rounded-lg border border-border">
+            <Image
+              src="/images/avatar.png"
+              alt="麻糬的大頭貼"
+              fill
+              sizes="112px"
+              className="object-cover"
+            />
           </div>
           <div className="flex flex-col justify-center gap-2">
             <p className="text-18 font-medium">
